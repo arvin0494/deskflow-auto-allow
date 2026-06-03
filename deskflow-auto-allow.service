@@ -5,9 +5,8 @@ Wants=ydotool.service
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/deskflow-auto-allow --loop
-Restart=on-failure
-RestartSec=3
+ExecStart=%h/.local/bin/deskflow-auto-allow
+Restart=no
 
 [Install]
 WantedBy=default.target

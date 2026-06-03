@@ -2,7 +2,7 @@
 Type=Application
 Name=Deskflow Auto Allow
 Comment=Auto-accept deskflow input capture dialog
-Exec=%h/.local/bin/deskflow-auto-allow --loop
+Exec=%h/.local/bin/deskflow-auto-allow
 Terminal=false
 X-GNOME-Autostart-enabled=true
 X-KDE-autostart-after=plasma-desktop
