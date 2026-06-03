@@ -7,29 +7,46 @@ const KDOTOOL_URL: &str =
     "https://github.com/jinliu/kdotool/releases/download/v0.2.3/kdotool-0.2.3-x86_64-unknown-linux-gnu.tar.gz";
 
 fn main() {
+    let debug = std::env::args().any(|a| a == "--debug");
+
     if std::env::args().any(|a| a == "--help" || a == "-h") {
-        println!("usage: deskflow-auto-allow [--loop]");
+        println!("usage: deskflow-auto-allow [--loop] [--debug]");
         println!("  auto-accept deskflow input capture dialog");
         println!("  exits after first match; use --loop to keep watching");
         return;
     }
 
-    if let Err(e) = ensure_deps() {
+    if let Err(e) = ensure_deps(debug) {
         eprintln!("error: {e}");
         std::process::exit(1);
     }
 
+    if debug {
+        eprintln!("debug: starting ydotool daemon if needed");
+    }
+    start_ydotool_daemon(debug);
+
     let r#loop = std::env::args().any(|a| a == "--loop");
     let kdotool = kdotool_path();
+    let ydotool = which("ydotool").unwrap_or_else(|| PathBuf::from("ydotool"));
+
+    if debug {
+        eprintln!("debug: kdotool={:?}", kdotool);
+        eprintln!("debug: ydotool={:?}", ydotool);
+    }
 
     loop {
-        if let Some(window) = find_window(&kdotool) {
+        if let Some(window) = find_window(&kdotool, debug) {
             println!("found deskflow window: {window}");
-            activate_window(&kdotool, &window);
-            std::thread::sleep(Duration::from_millis(300));
-            press_enter();
-            std::thread::sleep(Duration::from_millis(300));
-            press_enter();
+            if debug {
+                let name = get_window_name(&kdotool, &window);
+                eprintln!("debug: window name: {name:?}");
+            }
+            activate_window(&kdotool, &window, debug);
+            std::thread::sleep(Duration::from_millis(500));
+            press_enter(&ydotool, debug);
+            std::thread::sleep(Duration::from_millis(500));
+            press_enter(&ydotool, debug);
             if !r#loop {
                 break;
             }
@@ -65,9 +82,36 @@ fn which(name: &str) -> Option<PathBuf> {
     })
 }
 
-fn ensure_deps() -> Result<(), String> {
+fn start_ydotool_daemon(debug: bool) {
+    let out = Command::new("systemctl")
+        .args(["--user", "is-active", "ydotool"])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            if debug {
+                eprintln!("debug: ydotoold already running");
+            }
+            return;
+        }
+        _ => {}
+    }
+
+    if debug {
+        eprintln!("debug: ydotoold not active, resetting and starting...");
+    }
+    let _ = Command::new("systemctl")
+        .args(["--user", "reset-failed", "ydotool"])
+        .output();
+    let _ = Command::new("systemctl")
+        .args(["--user", "start", "ydotool"])
+        .output();
+}
+
+fn ensure_deps(debug: bool) -> Result<(), String> {
     if kdotool_path().exists() {
-        // already installed or found in PATH
+        if debug {
+            eprintln!("debug: kdotool found at {:?}", kdotool_path());
+        }
     } else {
         println!("kdotool not found, downloading...");
         install_kdotool()?;
@@ -83,16 +127,29 @@ fn ensure_deps() -> Result<(), String> {
 fn install_kdotool() -> Result<(), String> {
     let dest = kdotool_path();
     let parent = dest.parent().unwrap();
-    std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
 
+    // try via package manager first
+    let distro = detect_distro();
+    match distro.as_str() {
+        "arch" | "manjaro" | "endeavouros" | "cachyos" => {
+            if let Ok(()) = run("paru", &["-S", "--noconfirm", "kdotool-bin"]) {
+                return Ok(());
+            }
+            if let Ok(()) = run("yay", &["-S", "--noconfirm", "kdotool-bin"]) {
+                return Ok(());
+            }
+        }
+        _ => {}
+    }
+
+    // fallback: download prebuilt binary
+    std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     let tmp = std::env::temp_dir().join("kdotool.tar.gz");
     run("curl", &["-fsSL", "-o", &tmp.to_string_lossy(), KDOTOOL_URL])?;
-
     let extract_dir = std::env::temp_dir().join("kdotool_extract");
     std::fs::create_dir_all(&extract_dir).map_err(|e| format!("mkdir: {e}"))?;
     run("tar", &["xzf", &tmp.to_string_lossy(), "-C", &extract_dir.to_string_lossy()])?;
 
-    // find kdotool binary after extraction
     let extracted = find_file(&extract_dir, "kdotool");
     match extracted {
         Some(src) => {
@@ -177,27 +234,65 @@ fn set_permissions(path: &PathBuf) -> Result<(), String> {
         .map_err(|e| format!("chmod: {e}"))
 }
 
-fn find_window(kdotool: &PathBuf) -> Option<String> {
+fn find_window(kdotool: &PathBuf, debug: bool) -> Option<String> {
     for pattern in PATTERNS {
-        let output = Command::new(kdotool).args(["search", pattern]).output().ok()?;
-        if output.status.success() {
-            let id = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())?;
-            return Some(id);
+        if debug {
+            eprintln!("debug: searching for {pattern:?}");
+        }
+        let output = Command::new(kdotool).args(["search", pattern]).output();
+        match &output {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                if debug {
+                    eprintln!("debug:   exit={:?} stdout={stdout:?}", out.status.code());
+                }
+                if out.status.success() {
+                    let id = stdout.lines().next().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                    if debug {
+                        eprintln!("debug:   id={id:?}");
+                    }
+                    if let Some(id) = id {
+                        return Some(id);
+                    }
+                }
+            }
+            Err(e) => {
+                if debug {
+                    eprintln!("debug:   error: {e}");
+                }
+            }
         }
     }
     None
 }
 
-fn activate_window(kdotool: &PathBuf, id: &str) {
+fn get_window_name(kdotool: &PathBuf, id: &str) -> String {
+    let out = Command::new(kdotool)
+        .args(["getwindowname", id])
+        .output()
+        .ok();
+    out.and_then(|o| {
+        if o.status.success() {
+            Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+        } else {
+            None
+        }
+    })
+    .unwrap_or_default()
+}
+
+fn activate_window(kdotool: &PathBuf, id: &str, debug: bool) {
+    if debug {
+        eprintln!("debug: activating window {id}");
+    }
     let _ = Command::new(kdotool).args(["windowactivate", id]).output();
 }
 
-fn press_enter() {
-    let _ = Command::new("ydotool")
+fn press_enter(ydotool: &PathBuf, debug: bool) {
+    if debug {
+        eprintln!("debug: pressing Enter via ydotool");
+    }
+    let _ = Command::new(ydotool)
         .args(["key", "28:1", "28:0"])
         .output();
 }
