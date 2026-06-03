@@ -1,10 +1,10 @@
 # deskflow-auto-allow
 
-Automatically accepts the deskflow input capture dialog. When a remote client requests input control, deskflow shows a dialog — this tool finds it via `kdotool` and presses Enter via `ydotool` to accept.
+Automatically accepts the [deskflow](https://github.com/deskflow/deskflow) input capture dialog. When a remote client requests input control, deskflow shows a dialog — this tool finds it via `kdotool` and presses Enter via `ydotool` to accept.
 
 ## Why
 
-Deskflow (and its predecessors Barrier/Synergy) requires manually clicking "Accept" on an input capture dialog whenever a remote client connects. If you frequently switch between machines, this gets tedious fast. This project automates that click so the experience is seamless — the first time a client connects, or every time with `--loop`.
+[Deskflow](https://github.com/deskflow/deskflow) (and its predecessors Barrier/Synergy) requires manually clicking "Accept" on an input capture dialog whenever a remote client connects. If you frequently switch between machines, this gets tedious fast. This project automates that click so the experience is seamless — the first time a client connects, or every time with `--loop`.
 
 ## How it works
 
