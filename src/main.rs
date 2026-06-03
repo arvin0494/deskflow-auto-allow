@@ -7,6 +7,13 @@ const KDOTOOL_URL: &str =
     "https://github.com/jinliu/kdotool/releases/download/v0.2.3/kdotool-0.2.3-x86_64-unknown-linux-gnu.tar.gz";
 
 fn main() {
+    if std::env::args().any(|a| a == "--help" || a == "-h") {
+        println!("usage: deskflow-auto-allow [--loop]");
+        println!("  auto-accept deskflow input capture dialog");
+        println!("  exits after first match; use --loop to keep watching");
+        return;
+    }
+
     if let Err(e) = ensure_deps() {
         eprintln!("error: {e}");
         std::process::exit(1);
