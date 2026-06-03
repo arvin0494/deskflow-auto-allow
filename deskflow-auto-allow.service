@@ -4,9 +4,9 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/deskflow-auto-allow --loop
-Restart=on-failure
-RestartSec=5
+ExecStart=%h/.local/bin/deskflow-auto-allow
+Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=default.target
