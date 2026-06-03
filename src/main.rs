@@ -40,6 +40,9 @@ fn main() {
         return;
     }
 
+    // wait for session to settle
+    std::thread::sleep(Duration::from_secs(3));
+
     if debug {
         eprintln!("debug: starting ydotool daemon");
     }
