@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-const PATTERNS: &[&str] = &["New Client", "Input Capture", "deskflow"];
+const PATTERNS: &[&str] = &["Input Capture", "New Client"];
 const KDOTOOL_URL: &str =
     "https://github.com/jinliu/kdotool/releases/download/v0.2.3/kdotool-0.2.3-x86_64-unknown-linux-gnu.tar.gz";
 const YDOTOOL_URL: &str =
@@ -50,6 +50,7 @@ fn main() {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
         PathBuf::from(home).join(".local").join("bin").join("ydotool")
     });
+    let mut seen: Vec<String> = Vec::new();
 
     if debug {
         eprintln!("debug: kdotool={:?}", kdotool);
@@ -68,7 +69,15 @@ fn main() {
         }
 
         if let Some(window) = find_window(&kdotool, debug) {
+            if seen.contains(&window) {
+                if debug {
+                    eprintln!("debug: already processed {window}, skipping");
+                }
+                std::thread::sleep(Duration::from_secs(1));
+                continue;
+            }
             println!("found deskflow window: {window}");
+            seen.push(window.clone());
             if debug {
                 let name = get_window_name(&kdotool, &window);
                 eprintln!("debug: window name: {name:?}");
@@ -364,7 +373,7 @@ fn find_window(kdotool: &PathBuf, debug: bool) -> Option<String> {
         if debug {
             eprintln!("debug: kdotool search {pattern:?}");
         }
-        let output = Command::new(kdotool).args(["search", pattern]).output();
+        let output = Command::new(kdotool).args(["search", "--title", pattern]).output();
         match &output {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);

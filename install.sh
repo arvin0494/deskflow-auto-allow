@@ -3,6 +3,7 @@ set -euo pipefail
 
 BIN_DIR="${HOME}/.local/bin"
 SYSTEMD_DIR="${HOME}/.config/systemd/user"
+AUTOSTART_DIR="${HOME}/.config/autostart"
 
 main() {
     echo "==> checking dependencies..."
@@ -27,23 +28,50 @@ main() {
     fi
 
     echo ""
-    echo "done. run: deskflow-auto-allow"
     echo ""
-    echo "autostart (install systemd service):"
-    echo "  mkdir -p ~/.config/systemd/user"
-    echo "  cp $(dirname "$0")/deskflow-auto-allow.service ~/.config/systemd/user/"
-    echo "  systemctl --user enable --now deskflow-auto-allow"
+    enable_service
+    echo ""
+    echo "done. deskflow-auto-allow will start on next boot."
+    echo "to start now: systemctl --user start deskflow-auto-allow"
 }
 
-install_service() {
+enable_service() {
+    # enable ydotool daemon first
+    systemctl --user daemon-reload
+    if systemctl --user enable --now ydotool 2>/dev/null; then
+        echo "enabled ydotoold (systemd)"
+    else
+        echo "warning: could not enable ydotool service"
+    fi
+
+    # install and enable our service
     mkdir -p "$SYSTEMD_DIR"
     cp "$(dirname "$0")/deskflow-auto-allow.service" "$SYSTEMD_DIR/"
     systemctl --user daemon-reload
-    echo "installed systemd service"
-    echo "enable:  systemctl --user enable --now deskflow-auto-allow"
+    systemctl --user enable --now deskflow-auto-allow
+    echo "enabled deskflow-auto-allow service"
+    echo ""
+    echo "status: systemctl --user status deskflow-auto-allow"
+    echo "logs:   journalctl --user -u deskflow-auto-allow -f"
+}
+
+enable_autostart() {
+    # enable ydotool daemon if systemd available
+    if systemctl --user enable --now ydotool 2>/dev/null; then
+        echo "enabled ydotoold (systemd)"
+    else
+        echo "warning: ydotool daemon not autostarted"
+    fi
+
+    # install desktop autostart entry
+    mkdir -p "$AUTOSTART_DIR"
+    cp "$(dirname "$0")/deskflow-auto-allow.desktop" "$AUTOSTART_DIR/"
+    chmod +x "${AUTOSTART_DIR}/deskflow-auto-allow.desktop"
+    echo "enabled desktop autostart entry"
 }
 
 case "${1:-}" in
-    install_service) install_service ;;
+    enable-service)  enable_service ;;
+    enable-autostart) enable_autostart ;;
     *) main ;;
 esac

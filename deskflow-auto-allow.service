@@ -1,12 +1,13 @@
 [Unit]
 Description=Auto-accept deskflow input capture dialog
 After=graphical-session.target
+Wants=ydotool.service
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/deskflow-auto-allow
-Restart=always
-RestartSec=10
+ExecStart=%h/.local/bin/deskflow-auto-allow --loop
+Restart=on-failure
+RestartSec=3
 
 [Install]
 WantedBy=default.target
