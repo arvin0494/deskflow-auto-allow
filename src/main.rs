@@ -12,7 +12,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let once = std::env::args().any(|a| a == "--once");
+    let r#loop = std::env::args().any(|a| a == "--loop");
     let kdotool = kdotool_path();
 
     loop {
@@ -23,7 +23,7 @@ fn main() {
             press_enter();
             std::thread::sleep(Duration::from_millis(300));
             press_enter();
-            if once {
+            if !r#loop {
                 break;
             }
         }
@@ -173,14 +173,16 @@ fn set_permissions(path: &PathBuf) -> Result<(), String> {
 fn find_window(kdotool: &PathBuf) -> Option<String> {
     for pattern in PATTERNS {
         let output = Command::new(kdotool)
-            .args(["search", pattern])
+            .args(["search", "--title", pattern])
             .output()
             .ok()?;
         if output.status.success() {
-            let id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !id.is_empty() {
-                return Some(id);
-            }
+            let id = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())?;
+            return Some(id);
         }
     }
     None

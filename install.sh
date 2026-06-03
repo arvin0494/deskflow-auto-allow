@@ -123,7 +123,12 @@ main() {
     install_ydotool
     install_rust_app
     add_to_path
-    echo "done. run: deskflow-auto-allow"
+    echo "done. run: deskflow-auto-allow  (add --loop to keep watching)"
+    echo ""
+    echo "to start on every boot:"
+    echo "  mkdir -p ~/.config/systemd/user"
+    echo "  cp deskflow-auto-allow.service ~/.config/systemd/user/"
+    echo "  systemctl --user enable --now deskflow-auto-allow"
 }
 
 main

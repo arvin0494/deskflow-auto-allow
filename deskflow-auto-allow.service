@@ -1,0 +1,12 @@
+[Unit]
+Description=Auto-accept deskflow input capture dialog
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/deskflow-auto-allow --loop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
