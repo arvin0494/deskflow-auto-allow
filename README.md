@@ -2,6 +2,10 @@
 
 Automatically accepts the deskflow input capture dialog. When a remote client requests input control, deskflow shows a dialog — this tool finds it via `kdotool` and presses Enter via `ydotool` to accept.
 
+## Why
+
+Deskflow (and its predecessors Barrier/Synergy) requires manually clicking "Accept" on an input capture dialog whenever a remote client connects. If you frequently switch between machines, this gets tedious fast. This project automates that click so the experience is seamless — the first time a client connects, or every time with `--loop`.
+
 ## How it works
 
 1. Runs `kdotool search --title "Input Capture"` (and `"New Client"`) to find the deskflow dialog
