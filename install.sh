@@ -4,6 +4,7 @@ set -euo pipefail
 KDOTOOL_URL="https://github.com/jinliu/kdotool/releases/download/v0.2.3/kdotool-0.2.3-x86_64-unknown-linux-gnu.tar.gz"
 BIN_DIR="${HOME}/.local/bin"
 CARGO_BIN="${HOME}/.cargo/bin"
+SYSTEMD_DIR="${HOME}/.config/systemd/user"
 
 detect_distro() {
     for f in /etc/os-release /usr/lib/os-release; do
@@ -95,10 +96,20 @@ install_rust_app() {
     fi
 
     echo "building deskflow-auto-allow..."
-    cargo build --release
+    local dir
+    dir="$(dirname "$0")"
+    cargo build --release --manifest-path "$dir/Cargo.toml"
     mkdir -p "$BIN_DIR"
-    cp target/release/deskflow-auto-allow "${BIN_DIR}/deskflow-auto-allow"
+    cp "$dir/target/release/deskflow-auto-allow" "${BIN_DIR}/deskflow-auto-allow"
     echo "installed deskflow-auto-allow to ${BIN_DIR}/deskflow-auto-allow"
+}
+
+install_service() {
+    mkdir -p "$SYSTEMD_DIR"
+    cp "$(dirname "$0")/deskflow-auto-allow.service" "$SYSTEMD_DIR/"
+    systemctl --user daemon-reload
+    echo "installed systemd service to ${SYSTEMD_DIR}/deskflow-auto-allow.service"
+    echo "enable:  systemctl --user enable --now deskflow-auto-allow"
 }
 
 add_to_path() {
@@ -123,12 +134,22 @@ main() {
     install_ydotool
     install_rust_app
     add_to_path
-    echo "done. run: deskflow-auto-allow  (add --loop to keep watching)"
     echo ""
-    echo "to start on every boot:"
-    echo "  mkdir -p ~/.config/systemd/user"
-    echo "  cp deskflow-auto-allow.service ~/.config/systemd/user/"
+    echo "done."
+    echo ""
+    echo "usage:"
+    echo "  deskflow-auto-allow              # run once, exits after accepting dialog"
+    echo "  deskflow-auto-allow --loop       # keep watching for new dialogs"
+    echo ""
+    echo "autostart (install systemd service):"
+    echo "  ./install.sh install_service"
     echo "  systemctl --user enable --now deskflow-auto-allow"
 }
 
-main
+if [ "$(basename "$0")" = "install.sh" ]; then
+    if [ "${1:-}" = "install_service" ]; then
+        install_service
+    else
+        main
+    fi
+fi

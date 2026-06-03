@@ -172,10 +172,7 @@ fn set_permissions(path: &PathBuf) -> Result<(), String> {
 
 fn find_window(kdotool: &PathBuf) -> Option<String> {
     for pattern in PATTERNS {
-        let output = Command::new(kdotool)
-            .args(["search", "--title", pattern])
-            .output()
-            .ok()?;
+        let output = Command::new(kdotool).args(["search", pattern]).output().ok()?;
         if output.status.success() {
             let id = String::from_utf8_lossy(&output.stdout)
                 .lines()
