@@ -29,22 +29,15 @@ main() {
 
     echo ""
     echo ""
-    enable_service
+    # remove old systemd service if it exists (migrating to autostart)
+    systemctl --user disable deskflow-auto-allow 2>/dev/null || true
+    rm -f "${SYSTEMD_DIR}/deskflow-auto-allow.service" 2>/dev/null || true
+    enable_autostart
     echo ""
-    echo "done. deskflow-auto-allow will start on next boot."
-    echo "to start now: systemctl --user start deskflow-auto-allow"
+    echo "done. deskflow-auto-allow will start on next login."
 }
 
 enable_service() {
-    # enable ydotool daemon first
-    systemctl --user daemon-reload
-    if systemctl --user enable --now ydotool 2>/dev/null; then
-        echo "enabled ydotoold (systemd)"
-    else
-        echo "warning: could not enable ydotool service"
-    fi
-
-    # install and enable our service
     mkdir -p "$SYSTEMD_DIR"
     cp "$(dirname "$0")/deskflow-auto-allow.service" "$SYSTEMD_DIR/"
     systemctl --user daemon-reload
@@ -56,14 +49,6 @@ enable_service() {
 }
 
 enable_autostart() {
-    # enable ydotool daemon if systemd available
-    if systemctl --user enable --now ydotool 2>/dev/null; then
-        echo "enabled ydotoold (systemd)"
-    else
-        echo "warning: ydotool daemon not autostarted"
-    fi
-
-    # install desktop autostart entry
     mkdir -p "$AUTOSTART_DIR"
     cp "$(dirname "$0")/deskflow-auto-allow.desktop" "$AUTOSTART_DIR/"
     chmod +x "${AUTOSTART_DIR}/deskflow-auto-allow.desktop"

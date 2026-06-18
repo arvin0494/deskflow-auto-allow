@@ -11,7 +11,7 @@ confirm() {
     echo "  - ${SYSTEMD_DIR}/deskflow-auto-allow.service"
     echo "  - ${AUTOSTART_DIR}/deskflow-auto-allow.desktop"
     echo "  - PATH additions in shell rc files"
-    echo "  - kdotool and ydotool (if installed by us)"
+    echo "  - kdotool (if installed locally)"
     echo ""
     echo "note: rust/cargo and the project source are NOT removed."
     echo ""
@@ -63,14 +63,8 @@ remove_deps() {
         rm -f "${BIN_DIR}/kdotool"
         echo "removed: ${BIN_DIR}/kdotool"
     fi
-    if [ -f "${BIN_DIR}/ydotool" ] && [ ! -f "/usr/bin/ydotool" ]; then
-        rm -f "${BIN_DIR}/ydotool"
-        echo "removed: ${BIN_DIR}/ydotool"
-    fi
-    if [ -f "${BIN_DIR}/ydotoold" ] && [ ! -f "/usr/bin/ydotoold" ]; then
-        rm -f "${BIN_DIR}/ydotoold"
-        echo "removed: ${BIN_DIR}/ydotoold"
-    fi
+    # clean up any leftover ydotool files from older versions
+    rm -f "${BIN_DIR}/ydotool" "${BIN_DIR}/ydotoold" 2>/dev/null || true
 }
 
 cleanup() {

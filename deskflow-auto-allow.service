@@ -2,11 +2,12 @@
 Description=Auto-accept deskflow input capture dialog
 After=graphical-session.target
 BindsTo=graphical-session.target
-Wants=ydotool.service
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 5
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=%h/.Xauthority
+ExecStartPre=/bin/sleep 10
 ExecStart=%h/.local/bin/deskflow-auto-allow
 Restart=no
 

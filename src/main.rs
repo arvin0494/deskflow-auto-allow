@@ -5,10 +5,6 @@ use std::time::{Duration, Instant};
 const PATTERNS: &[&str] = &["Input Capture", "New Client"];
 const KDOTOOL_URL: &str =
     "https://github.com/jinliu/kdotool/releases/download/v0.2.3/kdotool-0.2.3-x86_64-unknown-linux-gnu.tar.gz";
-const YDOTOOL_URL: &str =
-    "https://github.com/ReimuNotMoe/ydotool/releases/download/v1.0.4/ydotool-release-ubuntu-latest";
-const YDOOTOLD_URL: &str =
-    "https://github.com/ReimuNotMoe/ydotool/releases/download/v1.0.4/ydotoold-release-ubuntu-latest";
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -31,6 +27,10 @@ fn main() {
         return;
     }
 
+    if std::env::var("DISPLAY").unwrap_or_default().is_empty() {
+        std::env::set_var("DISPLAY", ":0");
+    }
+
     if let Err(e) = ensure_deps(debug) {
         eprintln!("error: {e}");
         std::process::exit(1);
@@ -41,23 +41,13 @@ fn main() {
     }
 
     // wait for session to settle
-    std::thread::sleep(Duration::from_secs(3));
-
-    if debug {
-        eprintln!("debug: starting ydotool daemon");
-    }
-    start_ydotool_daemon(debug);
+    std::thread::sleep(Duration::from_secs(5));
 
     let kdotool = kdotool_path();
-    let ydotool = which("ydotool").unwrap_or_else(|| {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
-        PathBuf::from(home).join(".local").join("bin").join("ydotool")
-    });
     let mut seen: Vec<String> = Vec::new();
 
     if debug {
         eprintln!("debug: kdotool={:?}", kdotool);
-        eprintln!("debug: ydotool={:?}", ydotool);
     }
 
     let start = Instant::now();
@@ -79,17 +69,17 @@ fn main() {
                 std::thread::sleep(Duration::from_secs(1));
                 continue;
             }
-            println!("found deskflow window: {window}");
+            let name = get_window_name(&kdotool, &window);
+            println!("found deskflow window: {window} ({name:?})");
             seen.push(window.clone());
             if debug {
-                let name = get_window_name(&kdotool, &window);
                 eprintln!("debug: window name: {name:?}");
             }
             activate_window(&kdotool, &window, debug);
-            std::thread::sleep(Duration::from_millis(500));
-            press_enter(&ydotool, debug);
-            std::thread::sleep(Duration::from_millis(500));
-            press_enter(&ydotool, debug);
+            std::thread::sleep(Duration::from_millis(1500));
+            press_enter(debug);
+            std::thread::sleep(Duration::from_millis(800));
+            press_enter(debug);
             if !r#loop {
                 break;
             }
@@ -127,11 +117,6 @@ fn which(name: &str) -> Option<PathBuf> {
     })
 }
 
-fn local_bin() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".into());
-    PathBuf::from(home).join(".local").join("bin")
-}
-
 // ── dependency installation ────────────────────────────────────────
 
 fn ensure_deps(debug: bool) -> Result<(), String> {
@@ -142,21 +127,31 @@ fn ensure_deps(debug: bool) -> Result<(), String> {
         eprintln!("debug: kdotool found at {:?}", kdotool_path());
     }
 
-    if which("ydotool").is_none() && local_bin().join("ydotool").exists() {
-        // found in local bin but not in PATH — still usable via full path
-    }
-
-    if which("ydotool").is_none() && !local_bin().join("ydotool").exists() {
-        println!("installing ydotool...");
-        install_ydotool(debug)?;
+    if which("xdotool").is_none() {
+        println!("installing xdotool...");
+        install_xdotool(debug)?;
     } else if debug {
-        eprintln!(
-            "debug: ydotool found at {:?}",
-            which("ydotool")
-                .unwrap_or_else(|| local_bin().join("ydotool"))
-        );
+        eprintln!("debug: xdotool found");
     }
     Ok(())
+}
+
+fn install_xdotool(_debug: bool) -> Result<(), String> {
+    let distro = detect_distro();
+    match distro.as_str() {
+        "arch" | "manjaro" | "endeavouros" | "cachyos" => {
+            run_which("sudo", &["pacman", "-S", "--noconfirm", "xdotool"])
+        }
+        "fedora" => run_which("sudo", &["dnf", "install", "-y", "xdotool"]),
+        "debian" | "ubuntu" | "pop" | "linuxmint" => {
+            run_which("sudo", &["apt", "install", "-y", "xdotool"])
+        }
+        "opensuse" | "suse" => run_which("sudo", &["zypper", "install", "-y", "xdotool"]),
+        "nixos" => run_which("nix-env", &["-iA", "nixos.xdotool"]),
+        "void" => run_which("sudo", &["xbps-install", "-y", "xdotool"]),
+        "alpine" => run_which("sudo", &["apk", "add", "xdotool"]),
+        _ => Err(format!("unsupported distro: {distro}, install xdotool manually")),
+    }
 }
 
 fn install_kdotool(debug: bool) -> Result<(), String> {
@@ -191,47 +186,6 @@ fn install_kdotool(debug: bool) -> Result<(), String> {
     download_tar_gz(KDOTOOL_URL, &dest, "kdotool", debug)
 }
 
-fn install_ydotool(debug: bool) -> Result<(), String> {
-    let distro = detect_distro();
-    let installed = match distro.as_str() {
-        "arch" | "manjaro" | "endeavouros" | "cachyos" => {
-            run_which("sudo", &["pacman", "-S", "--noconfirm", "ydotool"]).is_ok()
-        }
-        "fedora" => run_which("sudo", &["dnf", "install", "-y", "ydotool"]).is_ok(),
-        "debian" | "ubuntu" | "pop" | "linuxmint" => {
-            run_which("apt-get", &["install", "-y", "ydotool"]).is_ok()
-                || run_which("sudo", &["apt", "install", "-y", "ydotool"]).is_ok()
-        }
-        "opensuse" | "suse" => {
-            run_which("sudo", &["zypper", "install", "-y", "ydotool"]).is_ok()
-        }
-        "nixos" => run_which("nix-env", &["-iA", "nixos.ydotool"]).is_ok(),
-        "void" => {
-            run_which("sudo", &["xbps-install", "-y", "ydotool"]).is_ok()
-        }
-        "alpine" => run_which("sudo", &["apk", "add", "ydotool"]).is_ok(),
-        _ => false,
-    };
-    if installed {
-        return Ok(());
-    }
-
-    // fallback: download prebuilt binary
-    if debug {
-        eprintln!("debug: downloading ydotool from GitHub");
-    }
-    let dest = local_bin().join("ydotool");
-    download_file(YDOTOOL_URL, &dest, debug)?;
-
-    if !local_bin().join("ydotoold").exists() {
-        if debug {
-            eprintln!("debug: downloading ydotoold from GitHub");
-        }
-        let d = local_bin().join("ydotoold");
-        download_file(YDOOTOLD_URL, &d, debug)?;
-    }
-    Ok(())
-}
 
 fn download_tar_gz(url: &str, dest: &PathBuf, binary_name: &str, debug: bool) -> Result<(), String> {
     let parent = dest.parent().unwrap();
@@ -258,18 +212,6 @@ fn download_tar_gz(url: &str, dest: &PathBuf, binary_name: &str, debug: bool) ->
         }
         None => Err(format!("{binary_name} not found in archive")),
     }
-}
-
-fn download_file(url: &str, dest: &PathBuf, debug: bool) -> Result<(), String> {
-    let parent = dest.parent().unwrap();
-    std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
-
-    run_which("curl", &["-fsSL", "-o", &dest.to_string_lossy(), url])?;
-    set_permissions(dest)?;
-    if debug {
-        eprintln!("debug: downloaded to {}", dest.display());
-    }
-    Ok(())
 }
 
 fn find_file(dir: &PathBuf, name: &str) -> Option<PathBuf> {
@@ -322,51 +264,6 @@ fn set_permissions(path: &PathBuf) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
         .map_err(|e| format!("chmod: {e}"))
-}
-
-// ── ydotool daemon ─────────────────────────────────────────────────
-
-fn start_ydotool_daemon(debug: bool) {
-    // try systemd first
-    if let Ok(out) = Command::new("systemctl")
-        .args(["--user", "is-active", "ydotool"])
-        .output()
-    {
-        if out.status.success() {
-            if debug {
-                eprintln!("debug: ydotoold already running (systemd)");
-            }
-            return;
-        }
-        let _ = Command::new("systemctl")
-            .args(["--user", "reset-failed", "ydotool"])
-            .output();
-        if Command::new("systemctl")
-            .args(["--user", "start", "ydotool"])
-            .output()
-            .is_ok()
-        {
-            std::thread::sleep(Duration::from_millis(500));
-            if debug {
-                eprintln!("debug: started ydotoold via systemd");
-            }
-            return;
-        }
-    }
-
-    // fallback: start ydotoold directly
-    let daemon = local_bin().join("ydotoold");
-    if daemon.exists() {
-        let _ = Command::new(&daemon).arg("--socket-path")
-            .arg(format!("/tmp/ydotool-{}", std::env::var("USER").unwrap_or_default()))
-            .spawn();
-        std::thread::sleep(Duration::from_millis(500));
-        if debug {
-            eprintln!("debug: started ydotoold directly");
-        }
-    } else if debug {
-        eprintln!("debug: ydotoold not available, ydotool may not work");
-    }
 }
 
 // ── core logic ─────────────────────────────────────────────────────
@@ -429,11 +326,10 @@ fn activate_window(kdotool: &PathBuf, id: &str, debug: bool) {
     let _ = Command::new(kdotool).args(["windowactivate", id]).output();
 }
 
-fn press_enter(ydotool: &PathBuf, debug: bool) {
+fn press_enter(debug: bool) {
     if debug {
-        eprintln!("debug: pressing Enter via ydotool");
+        eprintln!("debug: pressing Enter via xdotool");
     }
-    let _ = Command::new(ydotool)
-        .args(["key", "28:1", "28:0"])
-        .output();
+    std::thread::sleep(Duration::from_millis(300));
+    let _ = Command::new("xdotool").args(["key", "Return"]).output();
 }
