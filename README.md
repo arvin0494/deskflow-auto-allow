@@ -20,6 +20,10 @@ Deskflow (and its predecessors Barrier/Synergy) requires manually clicking "Acce
 - **xdotool** sends keystrokes at the X11 level. After `kdotool windowactivate` gives the dialog focus, `xdotool key Return` presses the default Allow button.
 - **ydotool** (the original approach) required a background daemon (`ydotoold`) that grabs `/dev/uinput` and evdev devices, which can conflict with Steam's controller/input handling and cause X session issues. `xdotool` has no daemon and no such conflicts.
 
+## Requirements
+
+- **KDE Plasma** — uses `kdotool` (KWin's window manager tool) to find and interact with the deskflow dialog. Other desktop environments are not supported.
+
 ## Dependencies
 
 - **kdotool** — KDE window management tool (finds and activates windows)
