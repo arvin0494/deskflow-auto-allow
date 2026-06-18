@@ -72,9 +72,6 @@ fn main() {
             let name = get_window_name(&kdotool, &window);
             println!("found deskflow window: {window} ({name:?})");
             seen.push(window.clone());
-            if debug {
-                eprintln!("debug: window name: {name:?}");
-            }
             activate_window(&kdotool, &window, debug);
             std::thread::sleep(Duration::from_millis(1500));
             press_enter(debug);
@@ -120,25 +117,26 @@ fn which(name: &str) -> Option<PathBuf> {
 // ── dependency installation ────────────────────────────────────────
 
 fn ensure_deps(debug: bool) -> Result<(), String> {
+    let distro = detect_distro();
+
     if !kdotool_path().exists() {
         println!("installing kdotool...");
-        install_kdotool(debug)?;
+        install_kdotool(&distro, debug)?;
     } else if debug {
         eprintln!("debug: kdotool found at {:?}", kdotool_path());
     }
 
     if which("xdotool").is_none() {
         println!("installing xdotool...");
-        install_xdotool(debug)?;
+        install_xdotool(&distro)?;
     } else if debug {
         eprintln!("debug: xdotool found");
     }
     Ok(())
 }
 
-fn install_xdotool(_debug: bool) -> Result<(), String> {
-    let distro = detect_distro();
-    match distro.as_str() {
+fn install_xdotool(distro: &str) -> Result<(), String> {
+    match distro {
         "arch" | "manjaro" | "endeavouros" | "cachyos" => {
             run_which("sudo", &["pacman", "-S", "--noconfirm", "xdotool"])
         }
@@ -154,10 +152,9 @@ fn install_xdotool(_debug: bool) -> Result<(), String> {
     }
 }
 
-fn install_kdotool(debug: bool) -> Result<(), String> {
+fn install_kdotool(distro: &str, debug: bool) -> Result<(), String> {
     // try package manager on supported distros
-    let distro = detect_distro();
-    let installed = match distro.as_str() {
+    let installed = match distro {
         "arch" | "manjaro" | "endeavouros" | "cachyos" => {
             if let Ok(()) = run_which("paru", &["-S", "--noconfirm", "kdotool-bin"]) {
                 true
@@ -185,7 +182,6 @@ fn install_kdotool(debug: bool) -> Result<(), String> {
     let dest = kdotool_path();
     download_tar_gz(KDOTOOL_URL, &dest, "kdotool", debug)
 }
-
 
 fn download_tar_gz(url: &str, dest: &PathBuf, binary_name: &str, debug: bool) -> Result<(), String> {
     let parent = dest.parent().unwrap();
